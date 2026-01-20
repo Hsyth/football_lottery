@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>球是FC球员注册</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body class="pitch-bg">
+<div class="overlay">
+    <div class="card">
+        <h2>⚽球是FC球员注册</h2>
+
+        <form method="post">
+            <input name="name" placeholder="姓名" required>
+            <input name="number" placeholder="球衣号" required>
+            <button>进入抽奖池</button>
+        </form>
+
+        {% if message %}
+        <p class="msg">{{ message }}</p >
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>

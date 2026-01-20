@@ -1,0 +1,57 @@
+body {
+    margin: 0;
+    font-family: "Microsoft YaHei";
+    color: #fff;
+    text-align: center;
+}
+
+.pitch-bg {
+    background: url("https://images.unsplash.com/photo-1508098682722-e99c43a406b2") center/cover;
+}
+
+.stadium-bg {
+    background: url("https://images.unsplash.com/photo-1505842465776-3bf38c3a6e49") center/cover;
+}
+
+.overlay {
+    background: rgba(0,0,0,.65);
+    min-height: 100vh;
+    padding-top: 60px;
+}
+
+.card {
+    background: rgba(0,0,0,.7);
+    padding: 30px;
+    width: 320px;
+    margin: auto;
+    border-radius: 15px;
+}
+
+input, select, button {
+    width: 100%;
+    margin: 10px 0;
+    padding: 10px;
+    font-size: 16px;
+}
+
+button {
+    background: #28a745;
+    border: none;
+    color: white;
+    cursor: pointer;
+}
+
+.reset {
+    background: #dc3545;
+}
+
+.info {
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+.winner {
+    font-size: 30px;
+    color: gold;
+    margin: 30px 0;
+}

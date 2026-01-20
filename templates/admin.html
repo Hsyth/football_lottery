@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>球是FC年会抽奖</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body class="stadium-bg">
+<div class="overlay">
+
+    <h1>🏆球是FC年会抽奖</h1>
+
+    <!-- 信息面板 -->
+    <div class="info">
+        👥 剩余未中奖人数：<b>{{ remaining }}</b><br><br>
+
+        🏆 一等奖：{{ prize_info["一等奖"].left }} / {{ prize_info["一等奖"].total }}
+        &nbsp;&nbsp;
+        🥈 二等奖：{{ prize_info["二等奖"].left }} / {{ prize_info["二等奖"].total }}
+        &nbsp;&nbsp;
+        🥉 三等奖：{{ prize_info["三等奖"].left }} / {{ prize_info["三等奖"].total }}
+    </div>
+
+    <!-- 抽奖表单 -->
+    <form method="post" style="margin-top: 20px;">
+        <select name="prize" required>
+            <option value="一等奖">一等奖 · Nike 单肩包</option>
+            <option value="二等奖">二等奖 · 卡尔美打底衫</option>
+            <option value="三等奖">三等奖 · 卡尔美两件套</option>
+        </select>
+        <button>🎯 开始抽奖</button>
+    </form>
+
+    <!-- ===== 抽奖滚动 + 结果展示 ===== -->
+    {% if winner %}
+
+    <!-- 隐藏：用于滚动的候选人 -->
+    <div style="display:none;">
+        {% for p in players %}
+        <span class="player-item">{{ p[1] }} 号 · {{ p[0] }}</span>
+        {% endfor %}
+    </div>
+
+    <div class="winner-box">
+        <div id="rolling">🎰 抽奖中...</div>
+
+        <div id="final-winner" style="display:none;">
+            🎉 {{ winner[1] }} 号 · {{ winner[0] }}
+        </div>
+    </div>
+
+    <script>
+        const names = document.querySelectorAll(".player-item");
+        const rolling = document.getElementById("rolling");
+        const finalWinner = document.getElementById("final-winner");
+
+        let index = 0;
+
+        const timer = setInterval(() => {
+            if (names.length > 0) {
+                rolling.innerText = names[index].innerText;
+                index = (index + 1) % names.length;
+            }
+        }, 100);
+
+        setTimeout(() => {
+            clearInterval(timer);
+            finalWinner.style.display = "block";
+        }, 3000);
+    </script>
+
+    {% endif %}
+
+    <!-- 重置抽奖（测试用） -->
+    <form method="post" action="/reset"
+          onsubmit="return confirm('确认清空所有中奖结果？仅用于测试！');"
+          style="margin-top: 30px;">
+        <button class="reset">🔄 重置抽奖（测试用）</button>
+    </form>
+
+    <!-- 参与人员名单 -->
+    <details style="margin-top: 25px;">
+        <summary>📋 查看当前未中奖参与人员名单</summary>
+        <ul style="list-style: none; padding: 0;">
+            {% for p in players %}
+            <li>{{ p[1] }} 号 · {{ p[0] }}</li>
+            {% endfor %}
+        </ul>
+    </details>
+
+</div>
+</body>
+</html>
