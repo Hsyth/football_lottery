@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, redirect, session
 import sqlite3
 import random
-import os
 
 app = Flask(__name__)
 app.secret_key = "fc_lottery_secret_2026"
@@ -9,12 +8,12 @@ app.secret_key = "fc_lottery_secret_2026"
 DB_PATH = "players.db"
 
 # ========================
-# 管理员密码（只你知道）
+# 管理员密码
 # ========================
-ADMIN_PASSWORD = "QSFC2025"
+ADMIN_PASSWORD = "fc2026"
 
 # ========================
-# 已拿大奖，永久排除（后台不可见）
+# 已拿过大奖（永久排除，页面不可见）
 # ========================
 EXCLUDED_NAMES = [
     "方涛",
@@ -23,13 +22,13 @@ EXCLUDED_NAMES = [
 ]
 
 # ========================
-# 一等奖内定（按名字）
+# 一等奖内定（姓名）
 # ========================
 PRESET_FIRST_PRIZE = "张宇健"
 
 
 # ========================
-# 数据库工具
+# 数据库
 # ========================
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -55,11 +54,12 @@ init_db()
 
 
 # ========================
-# 注册页面
+# 注册页
 # ========================
 @app.route("/", methods=["GET", "POST"])
 def register():
     message = ""
+
     if request.method == "POST":
         name = request.form.get("name", "").strip()
 
@@ -97,10 +97,8 @@ def admin_login():
             session["admin_logged_in"] = True
             return redirect("/admin")
         else:
-            return render_template(
-                "admin_login.html",
-                error="密码错误"
-            )
+            return render_template("admin_login.html", error="密码错误")
+
     return render_template("admin_login.html")
 
 
@@ -121,32 +119,36 @@ def admin():
     conn = get_db()
     c = conn.cursor()
 
-    # 可抽名单：未中奖 + 不在排除名单 + 非内定一等奖
-    c.execute("""
+    # 未中奖 & 可抽
+    placeholders = ",".join("?" * len(EXCLUDED_NAMES))
+    c.execute(f"""
         SELECT name FROM players
         WHERE prize IS NULL
-          AND name NOT IN ({})
+          AND name NOT IN ({placeholders})
           AND name != ?
-    """.format(",".join("?" * len(EXCLUDED_NAMES))),
-              (*EXCLUDED_NAMES, PRESET_FIRST_PRIZE))
-
+    """, (*EXCLUDED_NAMES, PRESET_FIRST_PRIZE))
     available_players = [row["name"] for row in c.fetchall()]
 
     # 已中奖
     c.execute("SELECT name, prize FROM players WHERE prize IS NOT NULL")
     winners = c.fetchall()
 
+    # 全部注册人员（仅管理员）
+    c.execute("SELECT id, name, prize FROM players")
+    all_players = c.fetchall()
+
     conn.close()
 
     return render_template(
         "admin.html",
         available_players=available_players,
-        winners=winners
+        winners=winners,
+        all_players=all_players
     )
 
 
 # ========================
-# 抽奖逻辑
+# 抽奖
 # ========================
 @app.route("/draw", methods=["POST"])
 def draw():
@@ -158,12 +160,9 @@ def draw():
     conn = get_db()
     c = conn.cursor()
 
-    # 一等奖内定
+    # 一等奖：内定
     if prize == "一等奖":
-        c.execute(
-            "SELECT prize FROM players WHERE name = ?",
-            (PRESET_FIRST_PRIZE,)
-        )
+        c.execute("SELECT prize FROM players WHERE name = ?", (PRESET_FIRST_PRIZE,))
         row = c.fetchone()
         if row and row["prize"] is None:
             c.execute(
@@ -174,14 +173,14 @@ def draw():
         conn.close()
         return redirect("/admin")
 
-    # 其他奖项随机
-    c.execute("""
+    # 其他奖项：随机
+    placeholders = ",".join("?" * len(EXCLUDED_NAMES))
+    c.execute(f"""
         SELECT name FROM players
         WHERE prize IS NULL
-          AND name NOT IN ({})
+          AND name NOT IN ({placeholders})
           AND name != ?
-    """.format(",".join("?" * len(EXCLUDED_NAMES))),
-              (*EXCLUDED_NAMES, PRESET_FIRST_PRIZE))
+    """, (*EXCLUDED_NAMES, PRESET_FIRST_PRIZE))
 
     candidates = [row["name"] for row in c.fetchall()]
 
@@ -198,28 +197,23 @@ def draw():
 
 
 # ========================
-# 清理重复注册（兜底）
+# 删除注册人员（管理员）
 # ========================
-@app.route("/clean_duplicates", methods=["POST"])
-def clean_duplicates():
+@app.route("/delete_player/<int:pid>", methods=["POST"])
+def delete_player(pid):
     if not session.get("admin_logged_in"):
         return redirect("/admin_login")
 
     conn = get_db()
     c = conn.cursor()
-    c.execute("""
-        DELETE FROM players
-        WHERE id NOT IN (
-            SELECT MIN(id) FROM players GROUP BY name
-        )
-    """)
+    c.execute("DELETE FROM players WHERE id = ?", (pid,))
     conn.commit()
     conn.close()
     return redirect("/admin")
 
 
 # ========================
-# 重置抽奖（不清空注册）
+# 重置抽奖（不清注册）
 # ========================
 @app.route("/reset_lottery", methods=["POST"])
 def reset_lottery():

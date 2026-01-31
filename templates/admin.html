@@ -1,144 +1,178 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<title>⚽ 年会抽奖后台</title>
+    <meta charset="UTF-8">
+    <title>年会抽奖管理后台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<style>
-body {
-    margin: 0;
-    background: linear-gradient(180deg, #0b5d2a, #063b1a);
-    font-family: "PingFang SC", sans-serif;
-    color: #fff;
-    text-align: center;
-}
+    <style>
+        body {
+            background: #0f3d2e;
+            font-family: -apple-system, BlinkMacSystemFont, "PingFang SC",
+                         "Microsoft YaHei", sans-serif;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
 
-h1 {
-    margin: 20px 0 10px;
-}
+        .container {
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 20px;
+        }
 
-.card {
-    background: rgba(255,255,255,0.1);
-    border-radius: 16px;
-    padding: 18px;
-    margin: 16px;
-}
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
 
-select, button {
-    padding: 12px 18px;
-    border-radius: 24px;
-    border: none;
-    font-size: 16px;
-    margin: 6px;
-}
+        .card {
+            background: #145a3a;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 18px;
+        }
 
-button {
-    background: #2ecc71;
-    color: #000;
-    font-weight: bold;
-}
+        .card h3 {
+            margin-top: 0;
+            font-size: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 8px;
+        }
 
-button.danger {
-    background: #e74c3c;
-    color: #fff;
-}
+        select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 20px;
+            border: none;
+            font-size: 15px;
+        }
 
-/* 🎰 三行滚动区 */
-.roller {
-    width: 260px;
-    margin: 20px auto;
-    overflow: hidden;
-    border-radius: 14px;
-    background: rgba(0,0,0,0.35);
-}
+        select {
+            background: #fff;
+            color: #000;
+        }
 
-.row {
-    height: 56px;
-    line-height: 56px;
-    font-size: 22px;
-}
+        .btn-green {
+            background: #2ecc71;
+            color: #000;
+            font-weight: bold;
+        }
 
-.middle {
-    font-size: 28px;
-    font-weight: bold;
-    color: #ffd700;
-    background: rgba(255,215,0,0.15);
-}
+        .btn-red {
+            background: #e74c3c;
+            color: #fff;
+            font-weight: bold;
+        }
 
-.list {
-    text-align: left;
-    max-width: 280px;
-    margin: 0 auto;
-}
-</style>
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 14px;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px dashed rgba(255,255,255,0.3);
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .prize {
+            color: gold;
+            font-size: 13px;
+        }
+
+        .danger {
+            background: #c0392b;
+            color: #fff;
+            border: none;
+        }
+    </style>
 </head>
 
 <body>
+<div class="container">
 
-<h1>⚽ 球是FC年会抽奖</h1>
+    <h1>🏆 年会抽奖管理后台</h1>
 
-<div class="card">
-    <form id="drawForm" action="/draw" method="post">
-        <select name="prize" id="prize">
-            <option value="一等奖">一等奖</option>
-            <option value="二等奖">二等奖</option>
-            <option value="三等奖">三等奖</option>
-        </select>
-        <br>
-        <button type="button" onclick="startDraw()">🎉 开始抽奖</button>
-    </form>
+    <!-- 抽奖控制区（第一行） -->
+    <div class="card">
+        <h3>🎯 抽奖操作</h3>
 
-    <!-- 🎰 滚动抽奖框 -->
-    <div class="roller" id="roller" style="display:none">
-        <div class="row" id="top">---</div>
-        <div class="row middle" id="mid">---</div>
-        <div class="row" id="bottom">---</div>
+        <form action="/draw" method="post">
+            <select name="prize">
+                <option value="一等奖">一等奖</option>
+                <option value="二等奖">二等奖</option>
+                <option value="三等奖">三等奖</option>
+            </select>
+
+            <button type="submit" class="btn-green">开始抽奖</button>
+        </form>
+
+        <form action="/reset_lottery" method="post"
+              onsubmit="return confirm('仅重置中奖结果，不会清空注册，确定？');">
+            <button type="submit" class="btn-red">重置抽奖（测试用）</button>
+        </form>
     </div>
+
+    <!-- 信息展示区（第二行） -->
+    <div class="card">
+        <h3>👥 未中奖（可抽）</h3>
+        {% if available_players %}
+            {% for name in available_players %}
+                <div class="list-item">
+                    <div>{{ name }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>暂无可抽人员</p >
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>🎉 已中奖</h3>
+        {% if winners %}
+            {% for w in winners %}
+                <div class="list-item">
+                    <div>{{ w.name }}</div>
+                    <div class="prize">{{ w.prize }}</div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>暂无中奖记录</p >
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>🛠 注册人员管理（仅管理员）</h3>
+        {% if all_players %}
+            {% for p in all_players %}
+                <div class="list-item">
+                    <div>
+                        {{ p.name }}
+                        {% if p.prize %}
+                            <span class="prize">（{{ p.prize }}）</span>
+                        {% endif %}
+                    </div>
+
+                    <form action="/delete_player/{{ p.id }}" method="post"
+                          onsubmit="return confirm('确定删除该注册信息？');">
+                        <button class="btn-small danger">删除</button>
+                    </form>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>暂无注册人员</p >
+        {% endif %}
+    </div>
+
 </div>
-
-<div class="card">
-    <form action="/clean_duplicates" method="post">
-        <button>🧹 清理重复注册</button>
-    </form>
-    <form action="/reset_lottery" method="post">
-        <button class="danger">♻ 重置抽奖（测试用）</button>
-    </form>
-</div>
-
-<div class="card">
-    <h3>🎯 当前可抽人数：{{ available_players|length }}</h3>
-</div>
-
-<script>
-const names = {{ available_players|tojson }};
-
-let timer = null;
-
-function randomName() {
-    return names[Math.floor(Math.random() * names.length)];
-}
-
-function startDraw() {
-    if (names.length === 0) {
-        alert("暂无可抽人员");
-        return;
-    }
-
-    document.getElementById("roller").style.display = "block";
-
-    timer = setInterval(() => {
-        document.getElementById("top").innerText = randomName();
-        document.getElementById("mid").innerText = randomName();
-        document.getElementById("bottom").innerText = randomName();
-    }, 80);
-
-    // 🎯 3 秒后停止滚动，并真正抽奖
-    setTimeout(() => {
-        clearInterval(timer);
-        document.getElementById("drawForm").submit();
-    }, 3000);
-}
-</script>
-
 </body>
 </html>
