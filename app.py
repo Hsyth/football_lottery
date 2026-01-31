@@ -1,42 +1,41 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
 import sqlite3
 import random
-import os
 
 app = Flask(__name__)
-app.secret_key = "football_lottery_secret"
+app.secret_key = "fc_lottery_secret"
 
 DB_PATH = "players.db"
 
-# =========================
-# 配置区（只改这里就行）
-# =========================
+# =====================
+# 配置区（只改这里）
+# =====================
 
-# 已经拿过大奖、但仍允许注册展示的球员（永远不进抽奖池）
+# 已经拿过“第一大奖”的人（永远不进抽奖池）
 EXCLUDED_PLAYERS = {
     "方涛",
-    "唐文增",
-    "许振扬"
+    "许振扬",
+    "唐文增"
 }
 
-# 一等奖内定球员（必须在注册名单中）
+# 一等奖内定
 PRESET_FIRST_PRIZE = "张宇健"
 
-# =========================
-# 数据库初始化
-# =========================
+# =====================
+# 数据库
+# =====================
 
 def get_db():
-    return sqlite3.connect(DB_PATH, check_same_thread=False)
+    return sqlite3.connect(DB_PATH)
 
 def init_db():
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
+    c = conn.cursor()
+    c.execute("""
     CREATE TABLE IF NOT EXISTS players (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE,
-        prize TEXT DEFAULT NULL
+        name TEXT,
+        prize TEXT
     )
     """)
     conn.commit()
@@ -44,136 +43,134 @@ def init_db():
 
 init_db()
 
-# =========================
-# 工具函数
-# =========================
-
-def normalize_name(name: str) -> str:
-    """统一名字格式，彻底防重复"""
-    return name.strip().lower()
-
-def display_name(name: str) -> str:
-    """用于页面展示"""
-    return name.capitalize()
-
-# =========================
-# 注册页面
-# =========================
+# =====================
+# 注册页
+# =====================
 
 @app.route("/", methods=["GET", "POST"])
 def register():
     conn = get_db()
-    cur = conn.cursor()
+    c = conn.cursor()
 
     if request.method == "POST":
-        raw_name = request.form.get("name", "")
-        name = normalize_name(raw_name)
-
+        name = request.form.get("name", "").strip()
         if not name:
             flash("名字不能为空")
-            return redirect(url_for("register"))
-
-        try:
-            cur.execute(
-                "INSERT INTO players (name) VALUES (?)",
-                (name,)
-            )
+        else:
+            c.execute("INSERT INTO players (name) VALUES (?)", (name,))
             conn.commit()
             flash("注册成功")
-        except sqlite3.IntegrityError:
-            flash("该名字已注册，请勿重复注册")
 
         return redirect(url_for("register"))
 
-    cur.execute("SELECT name FROM players")
-    players = [display_name(row[0]) for row in cur.fetchall()]
+    c.execute("SELECT name FROM players")
+    players = [row[0] for row in c.fetchall()]
     conn.close()
 
     return render_template("register.html", players=players)
 
-# =========================
-# 管理员 / 抽奖页面
-# =========================
+# =====================
+# 后台工具函数
+# =====================
+
+def deduplicate_players():
+    """按名字去重，只保留最早一条"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        DELETE FROM players
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM players
+            GROUP BY name
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def get_draw_pool():
+    """构建真实抽奖池"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT name FROM players WHERE prize IS NULL")
+    names = [row[0] for row in c.fetchall()]
+    conn.close()
+
+    pool = []
+    for n in names:
+        if n not in EXCLUDED_PLAYERS:
+            pool.append(n)
+    return pool
+
+# =====================
+# 管理 / 抽奖页
+# =====================
 
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
     conn = get_db()
-    cur = conn.cursor()
-
-    # 所有注册用户
-    cur.execute("SELECT name, prize FROM players")
-    rows = cur.fetchall()
-
-    all_players = []
-    winners = []
-    unawarded = []
-
-    for name, prize in rows:
-        show_name = display_name(name)
-
-        all_players.append(show_name)
-
-        if prize:
-            winners.append((show_name, prize))
-        else:
-            # 排除已获大奖的人
-            if show_name not in EXCLUDED_PLAYERS:
-                unawarded.append(show_name)
-
-    remaining_count = len(unawarded)
+    c = conn.cursor()
 
     if request.method == "POST":
         action = request.form.get("action")
 
-        # ========= 抽奖 =========
+        # ① 去重
+        if action == "dedupe":
+            deduplicate_players()
+            flash("已按名字清理重复注册")
+            return redirect(url_for("admin"))
+
+        # ② 抽奖
         if action == "draw":
             prize = request.form.get("prize")
 
-            # 一等奖：内定
+            # 一等奖内定
             if prize == "一等奖":
-                preset = normalize_name(PRESET_FIRST_PRIZE)
-                cur.execute(
-                    "UPDATE players SET prize = ? WHERE name = ? AND prize IS NULL",
-                    (prize, preset)
+                c.execute(
+                    "UPDATE players SET prize=? WHERE name=?",
+                    (prize, PRESET_FIRST_PRIZE)
                 )
                 conn.commit()
                 flash(f"一等奖：{PRESET_FIRST_PRIZE}")
                 return redirect(url_for("admin"))
 
-            # 其他奖项：随机
-            if not unawarded:
-                flash("没有可抽奖的参与者")
+            pool = get_draw_pool()
+            if not pool:
+                flash("没有可抽奖的人")
                 return redirect(url_for("admin"))
 
-            winner = random.choice(unawarded)
-            cur.execute(
-                "UPDATE players SET prize = ? WHERE name = ?",
-                (prize, normalize_name(winner))
+            winner = random.choice(pool)
+            c.execute(
+                "UPDATE players SET prize=? WHERE name=?",
+                (prize, winner)
             )
             conn.commit()
             flash(f"{prize}：{winner}")
             return redirect(url_for("admin"))
 
-        # ========= 重置抽奖 =========
+        # ③ 重置抽奖
         if action == "reset":
-            cur.execute("UPDATE players SET prize = NULL")
+            c.execute("UPDATE players SET prize=NULL")
             conn.commit()
-            flash("已重置抽奖结果（注册名单保留）")
+            flash("已重置抽奖结果（不清注册）")
             return redirect(url_for("admin"))
 
+    # 页面数据
+    c.execute("SELECT name, prize FROM players")
+    rows = c.fetchall()
     conn.close()
+
+    all_players = [r[0] for r in rows]
+    winners = [(r[0], r[1]) for r in rows if r[1]]
+    unawarded = [r[0] for r in rows if not r[1] and r[0] not in EXCLUDED_PLAYERS]
 
     return render_template(
         "admin.html",
         all_players=all_players,
         winners=winners,
         unawarded=unawarded,
-        remaining_count=remaining_count
+        excluded=EXCLUDED_PLAYERS
     )
-
-# =========================
-# 启动
-# =========================
 
 if __name__ == "__main__":
     app.run(debug=True)
