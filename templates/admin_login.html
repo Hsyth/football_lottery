@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>管理员登录</title>
+<style>
+body {
+    background: linear-gradient(180deg,#0b5d2a,#063b1a);
+    color: #fff;
+    text-align: center;
+    font-family: "PingFang SC", sans-serif;
+}
+.card {
+    margin: 100px auto;
+    width: 280px;
+    padding: 20px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 16px;
+}
+input,button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 20px;
+    border: none;
+}
+button {
+    background: #2ecc71;
+    font-weight: bold;
+}
+.error {
+    color: #ff7675;
+}
+</style>
+</head>
+
+<body>
+<div class="card">
+    <h2>⚽ 管理员登录</h2>
+    <form method="post">
+        <input type="password" name="password" placeholder="请输入管理密码">
+        <button type="submit">进入后台</button>
+    </form>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+</div>
+</body>
+</html>

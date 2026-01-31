@@ -1,67 +1,144 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <title>⚽ 年会抽奖管理后台</title>
-    <style>
-        body {
-            background: #0b5d2a;
-            color: #fff;
-            font-family: "PingFang SC", sans-serif;
-        }
-        .card {
-            background: #0f6f35;
-            padding: 16px;
-            margin: 16px;
-            border-radius: 10px;
-        }
-        button {
-            padding: 6px 12px;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-        }
-    </style>
+<meta charset="UTF-8">
+<title>⚽ 年会抽奖后台</title>
+
+<style>
+body {
+    margin: 0;
+    background: linear-gradient(180deg, #0b5d2a, #063b1a);
+    font-family: "PingFang SC", sans-serif;
+    color: #fff;
+    text-align: center;
+}
+
+h1 {
+    margin: 20px 0 10px;
+}
+
+.card {
+    background: rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 18px;
+    margin: 16px;
+}
+
+select, button {
+    padding: 12px 18px;
+    border-radius: 24px;
+    border: none;
+    font-size: 16px;
+    margin: 6px;
+}
+
+button {
+    background: #2ecc71;
+    color: #000;
+    font-weight: bold;
+}
+
+button.danger {
+    background: #e74c3c;
+    color: #fff;
+}
+
+/* 🎰 三行滚动区 */
+.roller {
+    width: 260px;
+    margin: 20px auto;
+    overflow: hidden;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.35);
+}
+
+.row {
+    height: 56px;
+    line-height: 56px;
+    font-size: 22px;
+}
+
+.middle {
+    font-size: 28px;
+    font-weight: bold;
+    color: #ffd700;
+    background: rgba(255,215,0,0.15);
+}
+
+.list {
+    text-align: left;
+    max-width: 280px;
+    margin: 0 auto;
+}
+</style>
 </head>
+
 <body>
 
-<h2 style="text-align:center">⚽ 年会抽奖管理后台</h2>
+<h1>⚽ 球是FC年会抽奖</h1>
 
 <div class="card">
-    <h3>操作</h3>
-    <form action="/clean_duplicates" method="post" style="display:inline">
-        <button>🧹 清理重复注册</button>
-    </form>
-    <form action="/reset_lottery" method="post" style="display:inline">
-        <button>♻ 重置抽奖结果</button>
-    </form>
-</div>
-
-<div class="card">
-    <h3>抽奖</h3>
-    <form action="/draw" method="post">
-        <select name="prize">
+    <form id="drawForm" action="/draw" method="post">
+        <select name="prize" id="prize">
             <option value="一等奖">一等奖</option>
             <option value="二等奖">二等奖</option>
             <option value="三等奖">三等奖</option>
         </select>
-        <button>🎉 开始抽奖</button>
+        <br>
+        <button type="button" onclick="startDraw()">🎉 开始抽奖</button>
+    </form>
+
+    <!-- 🎰 滚动抽奖框 -->
+    <div class="roller" id="roller" style="display:none">
+        <div class="row" id="top">---</div>
+        <div class="row middle" id="mid">---</div>
+        <div class="row" id="bottom">---</div>
+    </div>
+</div>
+
+<div class="card">
+    <form action="/clean_duplicates" method="post">
+        <button>🧹 清理重复注册</button>
+    </form>
+    <form action="/reset_lottery" method="post">
+        <button class="danger">♻ 重置抽奖（测试用）</button>
     </form>
 </div>
 
 <div class="card">
-    <h3>未中奖（可抽）：{{ available_players|length }}</h3>
-    {% for p in available_players %}
-        <div>{{ p }}</div>
-    {% endfor %}
+    <h3>🎯 当前可抽人数：{{ available_players|length }}</h3>
 </div>
 
-<div class="card">
-    <h3>已中奖</h3>
-    {% for w in winners %}
-        <div>{{ w["name"] }} - {{ w["prize"] }}</div>
-    {% endfor %}
-</div>
+<script>
+const names = {{ available_players|tojson }};
+
+let timer = null;
+
+function randomName() {
+    return names[Math.floor(Math.random() * names.length)];
+}
+
+function startDraw() {
+    if (names.length === 0) {
+        alert("暂无可抽人员");
+        return;
+    }
+
+    document.getElementById("roller").style.display = "block";
+
+    timer = setInterval(() => {
+        document.getElementById("top").innerText = randomName();
+        document.getElementById("mid").innerText = randomName();
+        document.getElementById("bottom").innerText = randomName();
+    }, 80);
+
+    // 🎯 3 秒后停止滚动，并真正抽奖
+    setTimeout(() => {
+        clearInterval(timer);
+        document.getElementById("drawForm").submit();
+    }, 3000);
+}
+</script>
 
 </body>
 </html>
