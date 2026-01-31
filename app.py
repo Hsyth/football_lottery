@@ -1,23 +1,31 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, session
 import sqlite3
 import random
-import os
 
 app = Flask(__name__)
-DB_NAME = "players.db"
+app.secret_key = "fc_lottery_secret_key"
+
+# ===== 管理员密码 =====
+ADMIN_PASSWORD = "QS2025"   # ← 自己改
+
+# ===== 已获得大奖，永久排除抽奖（按姓名）=====
+EXCLUDED_NAMES = ["方涛", "唐文增", "许振扬"]   # ← 改成真实姓名
+
+# ===== 一等奖内定人员（按姓名）=====
+FIXED_FIRST_PRIZE_NAME = "张宇健"   # ← 改成真实姓名
+
+DB_PATH = "players.db"
 
 
-# ======================
-# 初始化数据库
-# ======================
+# ===== 初始化数据库（姓名唯一，防重复注册）=====
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            number INTEGER NOT NULL,
+            name TEXT NOT NULL UNIQUE,
+            number TEXT NOT NULL,
             prize TEXT
         )
     """)
@@ -28,128 +36,147 @@ def init_db():
 init_db()
 
 
-# ======================
-# 工具函数
-# ======================
-def get_all_unwon_players():
-    conn = sqlite3.connect(DB_NAME)
+# ===== 注册页面 =====
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    msg = None
+    if request.method == "POST":
+        name = request.form.get("name")
+        number = request.form.get("number")
+
+        if not name or not number:
+            msg = "请填写完整信息"
+        else:
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            try:
+                c.execute(
+                    "INSERT INTO players (name, number) VALUES (?, ?)",
+                    (name.strip(), number.strip())
+                )
+                conn.commit()
+                msg = "注册成功！"
+            except sqlite3.IntegrityError:
+                msg = "该姓名已注册，请勿重复报名"
+            finally:
+                conn.close()
+
+    return render_template("register.html", msg=msg)
+
+
+# ===== 管理员登录 =====
+@app.route("/admin_login", methods=["GET", "POST"])
+def admin_login():
+    error = None
+    if request.method == "POST":
+        if request.form.get("password") == ADMIN_PASSWORD:
+            session["admin_logged_in"] = True
+            return redirect("/admin")
+        else:
+            error = "密码错误"
+    return render_template("admin_login.html", error=error)
+
+
+# ===== 抽奖管理页面 =====
+@app.route("/admin", methods=["GET", "POST"])
+def admin():
+    if not session.get("admin_logged_in"):
+        return redirect("/admin_login")
+
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT name, number FROM players WHERE prize IS NULL")
-    data = c.fetchall()
-    conn.close()
-    return data
 
+    # ===== 抽奖池（排除指定姓名）=====
+    if EXCLUDED_NAMES:
+        placeholders = ",".join(["?"] * len(EXCLUDED_NAMES))
+        query = f"""
+            SELECT name, number FROM players
+            WHERE prize IS NULL
+            AND name NOT IN ({placeholders})
+        """
+        c.execute(query, EXCLUDED_NAMES)
+    else:
+        c.execute("SELECT name, number FROM players WHERE prize IS NULL")
 
-def draw_winner(prize):
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT id, name, number FROM players WHERE prize IS NULL")
-    candidates = c.fetchall()
+    players = c.fetchall()
+    remaining = len(players)
 
-    if not candidates:
-        conn.close()
-        return None
-
-    winner = random.choice(candidates)
-    c.execute("UPDATE players SET prize=? WHERE id=?", (prize, winner[0]))
-    conn.commit()
-    conn.close()
-
-    return winner[1], winner[2]
-
-
-def get_remaining_count():
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM players WHERE prize IS NULL")
-    count = c.fetchone()[0]
-    conn.close()
-    return count
-
-
-def get_prize_status():
-    prize_total = {
-        "一等奖": 3,
-        "二等奖": 5,
-        "三等奖": 5
+    # ===== 奖项配置 =====
+    prize_info = {
+        "一等奖": {"total": 3, "left": 3},
+        "二等奖": {"total": 5, "left": 5},
+        "三等奖": {"total": 5, "left": 5},
     }
 
-    conn = sqlite3.connect(DB_NAME)
-    c = conn.cursor()
-    result = {}
-
-    for prize, total in prize_total.items():
-        c.execute("SELECT COUNT(*) FROM players WHERE prize=?", (prize,))
+    for prize in prize_info:
+        c.execute("SELECT COUNT(*) FROM players WHERE prize = ?", (prize,))
         used = c.fetchone()[0]
-        result[prize] = {
-            "used": used,
-            "total": total,
-            "left": total - used
-        }
+        prize_info[prize]["left"] -= used
+
+    winner = None
+
+    # ===== 抽奖逻辑 =====
+    if request.method == "POST":
+        prize = request.form.get("prize")
+
+        # 🎯 一等奖内定
+        if prize == "一等奖":
+            c.execute(
+                "SELECT name, number FROM players WHERE name = ? AND prize IS NULL",
+                (FIXED_FIRST_PRIZE_NAME,)
+            )
+            fixed = c.fetchone()
+            if fixed:
+                winner = fixed
+                c.execute(
+                    "UPDATE players SET prize = ? WHERE name = ?",
+                    (prize, fixed[0])
+                )
+                conn.commit()
+
+        # 🎯 普通随机抽奖
+        if not winner and players and prize_info[prize]["left"] > 0:
+            winner = random.choice(players)
+            c.execute(
+                "UPDATE players SET prize = ? WHERE name = ?",
+                (prize, winner[0])
+            )
+            conn.commit()
 
     conn.close()
-    return result
+
+    return render_template(
+        "admin.html",
+        players=players,
+        winner=winner,
+        remaining=remaining,
+        prize_info=prize_info,
+        excluded_names=EXCLUDED_NAMES,
+        fixed_first=FIXED_FIRST_PRIZE_NAME
+    )
 
 
-def reset_lottery():
-    conn = sqlite3.connect(DB_NAME)
+# ===== 重置抽奖（不清注册、不清规则）=====
+@app.route("/reset", methods=["POST"])
+def reset():
+    if not session.get("admin_logged_in"):
+        return redirect("/admin_login")
+
+    conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE players SET prize = NULL")
     conn.commit()
     conn.close()
 
-
-# ======================
-# 路由
-# ======================
-@app.route("/", methods=["GET", "POST"])
-def register():
-    msg = None
-    if request.method == "POST":
-        name = request.form["name"]
-        number = request.form["number"]
-
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
-        c.execute(
-            "INSERT INTO players (name, number) VALUES (?, ?)",
-            (name, number)
-        )
-        conn.commit()
-        conn.close()
-
-        msg = "✅ 注册成功，已进入抽奖池"
-
-    return render_template("register.html", message=msg)
+    return redirect("/admin")
 
 
-@app.route("/admin", methods=["GET", "POST"])
-def admin():
-    winner = None
-
-    if request.method == "POST":
-        prize = request.form["prize"]
-        winner = draw_winner(prize)
-
-    players = get_all_unwon_players()
-    remaining = get_remaining_count()
-    prize_info = get_prize_status()
-
-    return render_template(
-        "admin.html",
-        winner=winner,
-        players=players,
-        remaining=remaining,
-        prize_info=prize_info
-    )
-
-
-@app.route("/reset", methods=["POST"])
-def reset():
-    reset_lottery()
-    return redirect(url_for("admin"))
+# ===== 管理员退出 =====
+@app.route("/admin_logout")
+def admin_logout():
+    session.clear()
+    return redirect("/admin_login")
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
