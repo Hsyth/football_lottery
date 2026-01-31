@@ -121,21 +121,6 @@
             <button type="submit" class="btn-red">重置抽奖（测试用）</button>
         </form>
     </div>
-
-    <!-- 信息展示区（第二行） -->
-    <div class="card">
-        <h3>👥 未中奖（可抽）</h3>
-        {% if available_players %}
-            {% for name in available_players %}
-                <div class="list-item">
-                    <div>{{ name }}</div>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>暂无可抽人员</p >
-        {% endif %}
-    </div>
-
     <div class="card">
         <h3>🎉 已中奖</h3>
         {% if winners %}

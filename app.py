@@ -13,19 +13,25 @@ DB_PATH = "players.db"
 ADMIN_PASSWORD = "fc2026"
 
 # ========================
-# 已拿过大奖（永久排除，页面不可见）
+# 抽奖规则（仅代码可见）
 # ========================
+
+# 已获得过大奖，永久排除
 EXCLUDED_NAMES = [
     "方涛",
     "许振扬",
     "唐文增"
 ]
 
-# ========================
-# 一等奖内定（姓名）
-# ========================
+# 一等奖内定 1 人（姓名）
 PRESET_FIRST_PRIZE = "张宇健"
 
+# 奖项名额设置（一次抽一个）
+PRIZE_LIMITS = {
+    "一等奖": 3,
+    "二等奖": 5,
+    "三等奖": 5
+}
 
 # ========================
 # 数据库
@@ -52,9 +58,8 @@ def init_db():
 
 init_db()
 
-
 # ========================
-# 注册页
+# 注册页面
 # ========================
 @app.route("/", methods=["GET", "POST"])
 def register():
@@ -85,7 +90,6 @@ def register():
 
     return render_template("register.html", message=message)
 
-
 # ========================
 # 管理员登录
 # ========================
@@ -107,7 +111,6 @@ def admin_logout():
     session.clear()
     return redirect("/")
 
-
 # ========================
 # 管理后台
 # ========================
@@ -118,16 +121,6 @@ def admin():
 
     conn = get_db()
     c = conn.cursor()
-
-    # 未中奖 & 可抽
-    placeholders = ",".join("?" * len(EXCLUDED_NAMES))
-    c.execute(f"""
-        SELECT name FROM players
-        WHERE prize IS NULL
-          AND name NOT IN ({placeholders})
-          AND name != ?
-    """, (*EXCLUDED_NAMES, PRESET_FIRST_PRIZE))
-    available_players = [row["name"] for row in c.fetchall()]
 
     # 已中奖
     c.execute("SELECT name, prize FROM players WHERE prize IS NOT NULL")
@@ -141,14 +134,12 @@ def admin():
 
     return render_template(
         "admin.html",
-        available_players=available_players,
         winners=winners,
         all_players=all_players
     )
 
-
 # ========================
-# 抽奖
+# 抽奖（一次一个 + 名额限制）
 # ========================
 @app.route("/draw", methods=["POST"])
 def draw():
@@ -160,20 +151,33 @@ def draw():
     conn = get_db()
     c = conn.cursor()
 
-    # 一等奖：内定
+    # ① 已抽人数
+    c.execute("SELECT COUNT(*) FROM players WHERE prize = ?", (prize,))
+    current_count = c.fetchone()[0]
+
+    # ② 达到名额上限，直接返回
+    if current_count >= PRIZE_LIMITS.get(prize, 0):
+        conn.close()
+        return redirect("/admin")
+
+    # ③ 一等奖：内定优先（只执行一次）
     if prize == "一等奖":
-        c.execute("SELECT prize FROM players WHERE name = ?", (PRESET_FIRST_PRIZE,))
+        c.execute(
+            "SELECT prize FROM players WHERE name = ?",
+            (PRESET_FIRST_PRIZE,)
+        )
         row = c.fetchone()
+
         if row and row["prize"] is None:
             c.execute(
                 "UPDATE players SET prize = ? WHERE name = ?",
                 (prize, PRESET_FIRST_PRIZE)
             )
             conn.commit()
-        conn.close()
-        return redirect("/admin")
+            conn.close()
+            return redirect("/admin")
 
-    # 其他奖项：随机
+    # ④ 其他情况：随机抽
     placeholders = ",".join("?" * len(EXCLUDED_NAMES))
     c.execute(f"""
         SELECT name FROM players
@@ -195,7 +199,6 @@ def draw():
     conn.close()
     return redirect("/admin")
 
-
 # ========================
 # 删除注册人员（管理员）
 # ========================
@@ -211,7 +214,6 @@ def delete_player(pid):
     conn.close()
     return redirect("/admin")
 
-
 # ========================
 # 重置抽奖（不清注册）
 # ========================
@@ -226,7 +228,6 @@ def reset_lottery():
     conn.commit()
     conn.close()
     return redirect("/admin")
-
 
 # ========================
 # 启动
