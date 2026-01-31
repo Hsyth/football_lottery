@@ -2,74 +2,65 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>抽奖管理后台</title>
+    <title>⚽ 年会抽奖管理后台</title>
     <style>
-        body { font-family: Arial; background:#0b6623; color:#fff; }
-        h1 { text-align:center; }
-        .box { background:#114422; padding:15px; margin:15px; border-radius:8px; }
-        button { padding:8px 15px; margin:5px; }
-        ul { list-style:none; padding:0; }
+        body {
+            background: #0b5d2a;
+            color: #fff;
+            font-family: "PingFang SC", sans-serif;
+        }
+        .card {
+            background: #0f6f35;
+            padding: 16px;
+            margin: 16px;
+            border-radius: 10px;
+        }
+        button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
-<h1>⚽ 年会抽奖管理后台</h1>
+<h2 style="text-align:center">⚽ 年会抽奖管理后台</h2>
 
-{% with messages = get_flashed_messages() %}
-  {% if messages %}
-    <div class="box">
-      {% for msg in messages %}
-        <p>{{ msg }}</p >
-      {% endfor %}
-    </div>
-  {% endif %}
-{% endwith %}
-
-<div class="box">
-    <h2>操作</h2>
-    <form method="post">
-        <button name="action" value="dedupe">🧹 清理重复注册</button>
-        <button name="action" value="reset">♻ 重置抽奖结果</button>
+<div class="card">
+    <h3>操作</h3>
+    <form action="/clean_duplicates" method="post" style="display:inline">
+        <button>🧹 清理重复注册</button>
+    </form>
+    <form action="/reset_lottery" method="post" style="display:inline">
+        <button>♻ 重置抽奖结果</button>
     </form>
 </div>
 
-<div class="box">
-    <h2>抽奖</h2>
-    <form method="post">
+<div class="card">
+    <h3>抽奖</h3>
+    <form action="/draw" method="post">
         <select name="prize">
             <option value="一等奖">一等奖（内定）</option>
             <option value="二等奖">二等奖</option>
             <option value="三等奖">三等奖</option>
         </select>
-        <button name="action" value="draw">🎉 开始抽奖</button>
+        <button>🎉 开始抽奖</button>
     </form>
 </div>
 
-<div class="box">
-    <h3>未中奖（可抽）：{{ unawarded|length }}</h3>
-    <ul>
-        {% for p in unawarded %}
-            <li>{{ p }}</li>
-        {% endfor %}
-    </ul>
+<div class="card">
+    <h3>未中奖（可抽）：{{ available_players|length }}</h3>
+    {% for p in available_players %}
+        <div>{{ p }}</div>
+    {% endfor %}
 </div>
 
-<div class="box">
+<div class="card">
     <h3>已中奖</h3>
-    <ul>
-        {% for w, prize in winners %}
-            <li>{{ w }} - {{ prize }}</li>
-        {% endfor %}
-    </ul>
-</div>
-
-<div class="box">
-    <h3>排除在抽奖池外（已拿大奖）</h3>
-    <ul>
-        {% for e in excluded %}
-            <li>{{ e }}</li>
-        {% endfor %}
-    </ul>
+    {% for w in winners %}
+        <div>{{ w["name"] }} - {{ w["prize"] }}</div>
+    {% endfor %}
 </div>
 
 </body>
